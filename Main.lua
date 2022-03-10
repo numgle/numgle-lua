@@ -42,6 +42,14 @@ local function hasValue (tab, val)
     end
     return false
 end
+local function indexOf(array, value)
+    for i, v in ipairs(array) do
+        if v == value then
+            return i
+        end
+    end
+    return nil
+end
 
 -- fetch dataset
 local req = https.request("https://raw.githubusercontent.com/numgle/dataset/main/src/data.json", function(res)
@@ -59,7 +67,29 @@ end)
 req:done()
 
 -- main
-local function getLetterType(charCode)
+handlerTable = {
+    [LETTER_TYPE.empty] = function(charCode) return "" end,
+    [LETTER_TYPE.completeHangeul] = function(charCode)
+        return completeHangeul(utf8.char(charCode))
+    end,
+    [LETTER_TYPE.notCompleteHangeul] = function(charCode)
+        return data.han[charCode - data.range.notCompleteHangul.start]
+    end,
+    [LETTER_TYPE.englishUpper] = function(charCode)
+        return data.englishUpper[charCode - data.range.uppercase.start]
+    end,
+    [LETTER_TYPE.englishLower] = function(charCode)
+        return data.englishLower[charCode - data.range.lowercase.start]
+    end,
+    [LETTER_TYPE.number] = function(charCode)
+        return data.number[charCode - data.range.number.start]
+    end,
+    [LETTER_TYPE.specialLetter] = function(charCode)
+        return data.special[indexOf(data.range.special, charCode)]
+    end,
+    [LETTER_TYPE.unknown] = function(charCode) return "" end
+}
+function getLetterType(charCode)
     if charCode ~= charCode or charCode == 13 or charCode == 10 or charCode == 32 then
         return LETTER_TYPE.empty
     elseif isInRange(charCode, data.range.completeHangul) then
@@ -78,31 +108,52 @@ local function getLetterType(charCode)
         return LETTER_TYPE.unknown
     end
 end
-local function separateHangeul(charCode)
+function separateHangeul(charCode)
     local separated = {}
     separated.cho = math.floor((charCode - 44032) / 28 / 21)
     separated.jung = math.floor(((charCode - 44032) / 28) % 21)
     separated.jong = math.floor((charCode - 44032) % 28)
-    return 
+    return separated
 end
-local function numglify(char)
-    print(char)
-    print(utf8.codepoint(char))
+function isInData(separated)
+    if separated.jong ~= 0 and data.jong[separated.jong + 1] == "" then
+        return false
+    elseif separated.jung >= 8 and separated.jung ~= 20 then
+        return data.jung[separated.jung - 7] ~= ""
+    else
+        return data.cj[math.min(8, separated.jung) + 1][separated.cho + 1] ~= ""
+    end
+end
+function completeHangeul(char)
+    local separated = separateHangeul(utf8.codepoint(char))
+
+    if not isInData(separated) then
+        return ""
+    elseif separated.jung >= 8 and separated.jung ~= 20 then
+        return data.jong[separated.jong + 1] .. data.jung[separated.jung - 7] .. data.cho[separated.cho + 1]
+    else return data.jong[separated.jong + 1] .. data.cj[math.min(8, separated.jung) + 1][separated.cho + 1]
+    end
+end
+function numglify(char)
     local charCode = utf8.codepoint(char)
     local letterType = getLetterType(charCode)
-    return letterType
+
+    return handlerTable[letterType](charCode + 1)
 end
-local function numglifyString(text)
+function numglifyString(text)
     local str = ""
 
     for i = 1, utf8.len(text)
     do
-        str = str .. numglify(utf8.sub(text, i, i))
+        str = str .. numglify(utf8.sub(text, i, i)) .. "<br>"
     end
     return str
 end
 
 http.createServer(function(req, res)
+    if req.url == "/favicon.ico" then
+        return
+    end
     local body = numglifyString(decodeURI(req.url:sub(2)))
     res:setHeader("Content-Type", "text/html; charset=utf-8")
     res:setHeader("Content-Length", #body)
