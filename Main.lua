@@ -73,16 +73,16 @@ handlerTable = {
         return completeHangeul(utf8.char(charCode))
     end,
     [LETTER_TYPE.notCompleteHangeul] = function(charCode)
-        return data.han[charCode - data.range.notCompleteHangul.start]
+        return data.han[charCode - data.range.notCompleteHangul.start + 1]
     end,
     [LETTER_TYPE.englishUpper] = function(charCode)
-        return data.englishUpper[charCode - data.range.uppercase.start]
+        return data.englishUpper[charCode - data.range.uppercase.start + 1]
     end,
     [LETTER_TYPE.englishLower] = function(charCode)
-        return data.englishLower[charCode - data.range.lowercase.start]
+        return data.englishLower[charCode - data.range.lowercase.start + 1]
     end,
     [LETTER_TYPE.number] = function(charCode)
-        return data.number[charCode - data.range.number.start]
+        return data.number[charCode - data.range.number.start + 1]
     end,
     [LETTER_TYPE.specialLetter] = function(charCode)
         return data.special[indexOf(data.range.special, charCode)]
@@ -138,7 +138,7 @@ function numglify(char)
     local charCode = utf8.codepoint(char)
     local letterType = getLetterType(charCode)
 
-    return handlerTable[letterType](charCode + 1)
+    return handlerTable[letterType](charCode)
 end
 function numglifyString(text)
     local str = ""
